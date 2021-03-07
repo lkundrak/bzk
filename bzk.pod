@@ -1,0 +1,89 @@
+=head1 NAME
+
+BZK (Boot Zedol) - Simple & Stupid Boot ROM Monitor
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<d>[B<ump>] [I<segment>B<:>][I<offset>] [I<length>]
+
+=item B<e>[B<nter>] [I<segment>B<:>][I<offset>] [I<value> ...]
+
+=item B<i>[B<nb>] | B<inw> [I<address>]
+
+=item B<ou>[B<t>] | B<outw> [I<address>] [I<value>]
+
+=back
+
+=head1 DESCRIPTION
+
+B<BZK> is an option ROM for IBM PC & compatibles that provides a simple
+monitor/shell. It allows reading & writing into memory and I/O ports and no
+more than that.
+
+It installs itself as a handler for I<Interrupt 18h>, which is called upon
+a failed attempt to boot from Floppy or Winchester. On an IBM PC it
+ordinarily runs the ROM BASIC interpreter (arguably more useful than this
+tool!), but on compatibes it typically just halts the computer with an
+error message ("No bootable device." or "NO ROM BASIC - SYSTEM HALTED").
+
+The reason this tool exists is that I needed a small (under 6K) ROM monitor
+that I could use to fiddle with I/O port on a diskless machine and
+I couldn't find any. It was written in a hurry, which is why it is neither
+efficient nor elegant. Perhaps it could still be useful to someone else.
+
+=head1 COMMANDS
+
+=over 4
+
+=item B<d>[B<ump>] [I<segment>B<:>][I<offset>] [I<length>]
+
+Inspect memory. If I<segment> is omitted, last one is reused. If I<offset>
+is omitted, last one + last I<len> is assumed. Default of 128 bytes are
+dumpd if I<length> is not specified.
+
+=item B<e>[B<nter>] [I<segment>B<:>][I<offset>] [I<value> ...]
+
+Write memory. If I<segment> is omitted, last one is reused. If I<offset>
+is omitted, it proceeds wherever last B<dump> or B<enter> left off.
+If I<value> is not set, BZK will repeatedly ask for values to enter into
+memory until a blank line is entered.
+
+=item B<i>[B<nb>] | B<inw> [I<address>]
+
+Read I/O port I<address>. B<inb> reads an 8-bit character, while B<inw>
+reads a 16-bit word.
+
+=item B<ou>[B<t>] | B<outw> [I<address>] I<value>
+
+Write I<value> into I/O port I<address>. If I<address> is not given, the
+last one used by B<in> or B<out> is reused.
+
+=back
+
+=head1 BUGS
+
+The tool is generally rather hacky. Sometimes there's a reason for that
+(e.g. size), but more likely it's laziness.
+
+Featues missing: Jumping to an address, setting registers, calling BIOS
+routines. Patches welcome.
+
+=head1 AUTHORS
+
+=over
+
+=item * Lubomir Rintel <L<lkundrak@v3.sk>>
+
+=back
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+The source code repository can be obtained from
+L<https://github.com/lkundrak/bzk>. Bug fixes and feature
+ehancements licensed under same conditions as badcat are welcome
+via GIT pull requests.

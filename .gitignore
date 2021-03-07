@@ -1,0 +1,8 @@
+.sw?
+.*.sw?
+*.8
+*.lst
+*.o
+*.pdf
+*.rom
+bzk
