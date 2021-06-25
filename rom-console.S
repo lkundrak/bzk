@@ -23,8 +23,8 @@
 .WORD 0xaa55	; Magic
 .BYTE 0x90	; Placeholder for length in 512B paragraphs
 
-.GLOBL _start
 _start:
+.GLOBL _start
 	xor ax, ax
 	mov es, ax
 	mov di, #0x60
@@ -47,13 +47,12 @@ _run:
 	; Copy text & data segment from CS:0000 to 0050:0000 in DRAM
 	push cs
 	pop ds
-	push #0x0050
-	pop es
+	mov cx, #0x50
+	mov es, cx
 
 	xor di, di
 	xor si, si
 	mov cx, #__edata
-	;shr cx, 1
 	cld
 relocate:
 	lodsb
@@ -70,7 +69,8 @@ bss:
 
 	; Proceed from the DRAM segment
 	push es
-	push #relocated
+	mov ax, #relocated
+	push ax
 	retf
 relocated:
 
@@ -80,7 +80,6 @@ relocated:
 
 	mov cx, es
 	mov ds, cx
-	mov es, cx
 	mov ss, cx
 
 	xor sp,sp
@@ -88,8 +87,18 @@ relocated:
 	push ax
 	push bx
 
-	; Dispatch to C
-	call _main
+	; Main loop
+	mov ax, #0x0d
+	push ax
+	call _gotchar
+	pop ax
+main:
+	call _getchar
+	push ax
+	call _gotchar
+	pop ax
+	cmp ax, ax
+	jz main
 
 	; Restore the old stack first.
 	pop bx
@@ -106,20 +115,6 @@ relocated:
 	; All done, restore the old CS:IP
 	retf
 
-/*
-.GLOBL _int10
-_int10:
-	push bp
-	mov bp, sp
-	mov ax, [bp+4]
-	mov bx, [bp+6]
-	mov cx, [bp+8]
-	mov dx, [bp+10]
-	int 0x10
-	pop bp
-	ret
-*/
-
 .GLOBL _putchar
 _putchar:
 	push bp
@@ -127,7 +122,8 @@ _putchar:
 	mov al, [bp+4]
 	cmp al, #0x0a
 	jne not_lf
-	push #0x0d
+	mov ax, #0x0d
+	push ax
 	call _putchar
 	inc sp
 	inc sp
@@ -145,69 +141,5 @@ _getchar:
 	xor ax, ax
 	int 0x16
 	xor ah, ah
-	pop bp
-	ret
-
-.GLOBL _memr
-_memr:
-	push bp
-	mov bp, sp
-	push ds
-	mov ax, [bp+4]
-	mov ds, ax
-	mov si, [bp+6]
-	mov ax, [si]
-	pop ds
-	pop bp
-	ret
-
-.GLOBL _inb
-_inb:
-	push bp
-	mov bp, sp
-	mov dx, [bp+4]
-	inb al, dx
-	xor ah, ah
-	pop bp
-	ret
-
-.GLOBL _outb
-_outb:
-	push bp
-	mov bp, sp
-	mov dx, [bp+4]
-	mov ax, [bp+6]
-	outb dx, al
-	pop bp
-	ret
-
-.GLOBL _inw
-_inw:
-	push bp
-	mov bp, sp
-	mov dx, [bp+4]
-	inw ax, dx
-	xor ah, ah
-	pop bp
-	ret
-
-.GLOBL _outw
-_outw:
-	push bp
-	mov bp, sp
-	mov dx, [bp+4]
-	mov ax, [bp+6]
-	outw dx, ax
-	pop bp
-	ret
-
-.GLOBL _setmem
-_setmem:
-	push bp
-	mov bp, sp
-	mov es, [bp+4]
-	mov di, [bp+6]
-	mov ax, [bp+8]
-	stosb
 	pop bp
 	ret

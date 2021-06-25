@@ -19,11 +19,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 CC = bcc
-
 CFLAGS = -0 -ansi -vv
 LDFLAGS = -x -M -d -i
+com_LDFLAGS = -T100 -Md
 
-all: bzk.rom bzk.8
+
+all: bzk.com bzk.rom bzk.8
+bzk.bin: rom-console.o common.o main.o
+bzk.com: tsr-serial.o common.o main.o
+
 
 %.o: %.c
 	$(CC) $(CFLAGS) -A-l -A$^.lst -o $@ -c $<
@@ -31,27 +35,50 @@ all: bzk.rom bzk.8
 %.o: %.S
 	$(CC) $(CFLAGS) -A-l -A$^.lst -o $@ -c $<
 
-bzk: lo.o main.o
+%.bin:
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 
-%.rom: %
+%.rom: %.bin
 	perl mangle.pl <$< >$@
 
-run: bzk.rom
-	qemu-system-i386 -net none -monitor stdio -option-rom $<
+%.com:
+	$(CC) $(CFLAGS) $(LDFLAGS) $(com_LDFLAGS) -o $@ $^
 
-dump: bzk
-	objdump -b binary -m i8086 -D bzk
+%.8: %.pod
+	pod2man --center 'System Tools Reference' \
+		--section 8 --date 2021-06-25 --release 2 $< >$@
 
-bzk.8: bzk.pod
-	pod2man --center 'Boot ROM Reference' \
-		--section 8 --date 2021-03-07 --release 1 $< >$@
-
-bzk.pdf: bzk.8
+%.pdf: %.8
 	groff -Tpdf -mman $< >$@
 
-clean:
-	rm -f *.o *.lst *.8 *.pdf bzk bzk.rom
+.PHONY: dumprom runrom
 
-.PHONY: clean run dump
+dumprom: bzk.bin
+	objdump -b binary -m i8086 -D $<
+
+runrom: bzk.rom
+	qemu-system-i386 -net none -monitor stdio -option-rom $<
+
+
+.PHONY: dumpcom runcom runcom-pty
+
+dumpcom: bzk.com
+	objdump -b binary -m i8086 -D $<
+
+runcom: bzk.com
+	mcopy -o -i fda.img $< ::
+	qemu-system-i386 -net none -serial stdio -fda fda.img
+
+runcom-pty: bzk.com
+	mcopy -o -i fda.img $< ::
+	rm -f PTY
+	qemu-system-i386 -net none -serial pty -fda fda.img |awk '/char device redirected to/ {print $$5; fflush()}' >PTY
+
+
+.PHONY: clean
+
+clean:
+	rm -f *.o *.lst *.bin *.8 bzk.com bzk.rom
+
+
 .SECONDARY:

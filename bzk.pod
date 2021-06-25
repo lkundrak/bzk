@@ -18,15 +18,27 @@ BZK (Boot Zedol) - Simple & Stupid Boot ROM Monitor
 
 =head1 DESCRIPTION
 
-B<BZK> is an option ROM for IBM PC & compatibles that provides a simple
-monitor/shell. It allows reading & writing into memory and I/O ports and no
-more than that.
+B<BZK> is a simple monitor/shell for IBM PC & compatibles. It allows
+reading & writing into memory and I/O ports and nothing more than that.
+It currently takes two forms:
 
-It installs itself as a handler for I<Interrupt 18h>, which is called upon
+=over 4
+
+=item B<bzk.rom> -- Option ROM
+
+Installs itself as a handler for I<Interrupt 18h>, which is called upon
 a failed attempt to boot from Floppy or Winchester. On an IBM PC it
 ordinarily runs the ROM BASIC interpreter (arguably more useful than this
 tool!), but on compatibes it typically just halts the computer with an
 error message ("No bootable device." or "NO ROM BASIC - SYSTEM HALTED").
+Uses regular BIOS keyboard and display I/O.
+
+=item B<bzk.com> -- DOS TSR program
+
+A resident program run from DOS that install itself as COM1 serial port
+handler.
+
+=back
 
 The reason this tool exists is that I needed a small (under 6K) ROM monitor
 that I could use to fiddle with I/O port on a diskless machine and
@@ -70,6 +82,13 @@ The tool is generally rather hacky. Sometimes there's a reason for that
 Featues missing: Jumping to an address, setting registers, calling BIOS
 routines. Patches welcome.
 
+There's no way to uninstall the DOS TSR.
+
+There's no way to configure the serial port for the DOS TSR.
+
+Option ROM always uses keyboard/display, DOS TSR always uses serial port.
+More combinations would be useful.
+
 =head1 AUTHORS
 
 =over
@@ -85,5 +104,5 @@ option) any later version.
 
 The source code repository can be obtained from
 L<https://github.com/lkundrak/bzk>. Bug fixes and feature
-ehancements licensed under same conditions as badcat are welcome
+ehancements licensed under same conditions as BZK are welcome
 via GIT pull requests.

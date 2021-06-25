@@ -4,5 +4,6 @@
 *.lst
 *.o
 *.pdf
+*.bin
 *.rom
-bzk
+*.com

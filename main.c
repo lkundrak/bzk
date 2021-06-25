@@ -42,86 +42,6 @@ puthex (unsigned num, int digits)
 	putchar (num > 9 ? 'a' + num - 10 : '0' + num);
 }
 
-static unsigned char linebuf[78];
-
-static char *
-readline (char *prompt)
-{
-	unsigned char c;
-	int edit = 1;
-	int i = 0;
-
-	sput (prompt);
-	while (1) {
-		c = getchar ();
-
-		/* ASCII printable */
-		if (c >= 0x20 && c < 0x7f) {
-			if (i == sizeof(linebuf) - 1) {
-				putchar ('\x07');
-				continue;
-			}
-			linebuf[i++] = c;
-			putchar (c);
-			continue;
-		}
-
-		/* Kill Letter */
-		if (c == 0x8) {
-			if (i == 0) {
-				putchar ('\x07');
-				continue;
-			}
-			linebuf[--i] = '\0';
-			putchar (c);
-			putchar (' ');
-			putchar (c);
-			continue;
-		}
-
-		/* Kill Word */
-		if (c == 0x17) {
-			while (i && linebuf[i - 1] == ' ') {
-				sput ("\b \b");
-				i--;
-			}
-			while (i && linebuf[i - 1] != ' ') {
-				sput ("\b \b");
-				i--;
-			}
-			continue;
-		}
-
-		/* Kill Line */
-		if (c == 0x3) {
-			linebuf[i] = '\0';
-			sput ("^C\n");
-			return linebuf;
-		}
-
-		/* Enter */
-		if (c == 0xd) {
-			if (i)
-				linebuf[i] = '\0';
-			putchar ('\n');
-			return linebuf;
-		}
-
-		/* Finished */
-		if (c == 0x4) {
-			if (i == 0) {
-				putchar ('\n');
-				return NULL;
-			}
-			linebuf[i] = '\0';
-			sput ("^D\n");
-			return linebuf;
-		}
-
-		putchar ('\x07');
-	}
-}
-
 static void
 dump (unsigned seg, unsigned off, unsigned len)
 {
@@ -211,181 +131,294 @@ gethex (char *line, unsigned *num)
 	return line;
 }
 
+enum { SHELL, ENTER } state = SHELL;
 unsigned seg = 0x0050;
 unsigned io = 0x80;
 unsigned off, len, val;
+static unsigned char linebuf[78];
 
-int
-main ()
+static void
+printprompt ()
 {
-	char *line;
+	switch (state) {
+	case SHELL:
+		sput ("$ ");
+		break;
+	case ENTER:
+		puthex (seg, 4);
+		putchar (':');
+		puthex (off, 4);
+		sput ("> ");
+		break;
+	}
+}
 
-	while (1) {
-		line = readline ("$ ");
-		if (line == NULL)
-			break;
-		if (*line == '\0')
-			continue;
-
-		if (isword (line, "dump")) {
-			line = nextword (line);
-			if (line)
-				line = gethex (line, &off);
-			if (line && *line == ':') {
-				seg = off;
-				if (*++line != ' ')
-					line = gethex (line, &off);
-				else
-					off = 0;
-			}
-			if (line) {
-				line = nextword (line);
-				line = gethex (line, &len);
-				line = nextword (line);
-				if (line) {
-					putchar ('\x07');
-					continue;
-				}
-			}
-			if (!len)
-				len = 0x80;
-			dump(seg, off, len);
-			off += len;
-			linebuf[0] = 'd';
-			linebuf[1] = '\0';
-			continue;
-		}
-
-		if (isword (line, "enter")) {
-			line = nextword (line);
-			if (line)
-				line = gethex (line, &off);
-			if (line && *line == ':') {
-				seg = off;
-				if (*++line != ' ') {
-					line = gethex (line, &off);
-					line = nextword (line);
-				} else {
-					off = 0;
-				}
-			}
-			if (!line || *line == '\0') {
-				linebuf[0] = '\0';
-				while (1) {
-					puthex (seg, 4);
-					putchar (':');
-					puthex (off, 4);
-					line = readline ("> ");
-					if (!line || *line == '\0')
-						break;
-					while (line && *line) {
-						line = gethex (line, &val);
-						if (line)
-							setmem (seg, off++, val);
-						line = nextword (line);
-					}
-					linebuf[0] = '\0';
-				}
-				continue;
-			}
-			while (line) {
-				line = gethex (line, &val);
-				line = nextword (line);
-				setmem (seg, off, val);
-				off++;
-			}
-			continue;
-		}
-
-		if (isword (line, "inb")) {
-			line = nextword (line);
-			if (line) {
-				line = gethex (line, &io);
-				line = nextword (line);
-			}
-			if (line) {
-				putchar ('\x07');
-				continue;
-			}
-			puthex (io, 4);
-			sput(": ");
-			puthex (inb (io), 2);
-			putchar('\n');
-			continue;
-		}
-
-		if (isword (line, "outb")) {
-			line = nextword (line);
-			if (line) {
-				line = gethex (line, &val);
-				line = nextword (line);
-			}
-			if (line) {
-				io = val;
-				line = gethex (line, &val);
-				line = nextword (line);
-			}
-			if (line) {
-				putchar ('\x07');
-				continue;
-			}
-			outb(io, val);
-			continue;
-		}
-
-		if (isword (line, "in")) {
-			line = nextword (line);
-			if (line) {
-				line = gethex (line, &io);
-				line = nextword (line);
-			}
-			if (line) {
-				putchar ('\x07');
-				continue;
-			}
-			puthex (io, 4);
-			sput(": ");
-			if (isword (linebuf, "inw"))
-				puthex (inw (io), 4);
-			else
-				puthex (inb (io), 2);
-			putchar('\n');
-			continue;
-		}
-
-		if (isword (line, "out")) {
-			line = nextword (line);
-			if (line) {
-				line = gethex (line, &val);
-				line = nextword (line);
-			}
-			if (line) {
-				io = val;
-				line = gethex (line, &val);
-				line = nextword (line);
-			}
-			if (line) {
-				putchar ('\x07');
-				continue;
-			}
-			if (isword (linebuf, "outw"))
-				outw(io, val);
-			else
-				outb(io, val);
-			continue;
-		}
-
-		if (isword (line, "help") || isword (line, "?")) {
-			sput("d[ump] [seg:][off] [len]\n");
-			sput("e[nter] [seg:][off] [val ...]\n");
-			sput("i[nb]|inw [adr]\n");
-			sput("ou[t]|outw [adr] [val]\n");
-			continue;
-		}
-
-		sput("Err.\x07\n");
+static void
+shellline (char *line)
+{
+	if (line == NULL) {
 		linebuf[0] = '\0';
+		goto prompt;
 	}
 
+	if (*line == '\0')
+		goto prompt;
+
+	if (isword (line, "dump")) {
+		line = nextword (line);
+		if (line)
+			line = gethex (line, &off);
+		if (line && *line == ':') {
+			seg = off;
+			if (*++line != ' ')
+				line = gethex (line, &off);
+			else
+				off = 0;
+		}
+		if (line) {
+			line = nextword (line);
+			line = gethex (line, &len);
+			line = nextword (line);
+			if (line) {
+				putchar ('\x07');
+				goto prompt;
+			}
+		}
+		if (!len)
+			len = 0x80;
+		dump(seg, off, len);
+		off += len;
+		linebuf[0] = 'd';
+		linebuf[1] = '\0';
+		goto prompt;
+	}
+
+	if (isword (line, "enter")) {
+		line = nextword (line);
+		if (line)
+			line = gethex (line, &off);
+		if (line && *line == ':') {
+			seg = off;
+			if (*++line != ' ') {
+				line = gethex (line, &off);
+				line = nextword (line);
+			} else {
+				off = 0;
+			}
+		}
+		if (!line || *line == '\0') {
+			state = ENTER;
+			linebuf[0] = '\0';
+			goto prompt;
+		}
+		while (line) {
+			line = gethex (line, &val);
+			line = nextword (line);
+			setmem (seg, off, val);
+			off++;
+		}
+		goto prompt;
+	}
+
+	if (isword (line, "inb")) {
+		line = nextword (line);
+		if (line) {
+			line = gethex (line, &io);
+			line = nextword (line);
+		}
+		if (line) {
+			putchar ('\x07');
+			goto prompt;
+		}
+		puthex (io, 4);
+		sput(": ");
+		puthex (inb (io), 2);
+		putchar('\n');
+		goto prompt;
+	}
+
+	if (isword (line, "outb")) {
+		line = nextword (line);
+		if (line) {
+			line = gethex (line, &val);
+			line = nextword (line);
+		}
+		if (line) {
+			io = val;
+			line = gethex (line, &val);
+			line = nextword (line);
+		}
+		if (line) {
+			putchar ('\x07');
+			goto prompt;
+		}
+		outb(io, val);
+		goto prompt;
+	}
+
+	if (isword (line, "in")) {
+		line = nextword (line);
+		if (line) {
+			line = gethex (line, &io);
+			line = nextword (line);
+		}
+		if (line) {
+			putchar ('\x07');
+			goto prompt;
+		}
+		puthex (io, 4);
+		sput(": ");
+		if (isword (linebuf, "inw"))
+			puthex (inw (io), 4);
+		else
+			puthex (inb (io), 2);
+		putchar('\n');
+		goto prompt;
+	}
+
+	if (isword (line, "out")) {
+		line = nextword (line);
+		if (line) {
+			line = gethex (line, &val);
+			line = nextword (line);
+		}
+		if (line) {
+			io = val;
+			line = gethex (line, &val);
+			line = nextword (line);
+		}
+		if (line) {
+			putchar ('\x07');
+			goto prompt;
+		}
+		if (isword (linebuf, "outw"))
+			outw(io, val);
+		else
+			outb(io, val);
+		goto prompt;
+	}
+
+	if (isword (line, "help") || isword (line, "?")) {
+		sput("d[ump] [seg:][off] [len]\n");
+		sput("e[nter] [seg:][off] [val ...]\n");
+		sput("i[nb]|inw [adr]\n");
+		sput("ou[t]|outw [adr] [val]\n");
+		goto prompt;
+	}
+
+	sput("Err.\x07\n");
+	linebuf[0] = '\0';
+prompt:
+	printprompt ();
+}
+
+static void
+enterline (char *line)
+{
+	if (!line || *line == '\0') {
+		state = SHELL;
+	} else {
+		while (line && *line) {
+			line = gethex (line, &val);
+			if (line)
+				setmem (seg, off++, val);
+			line = nextword (line);
+		}
+	}
+
+	linebuf[0] = '\0';
+	printprompt ();
+}
+
+static void
+gotline (char *line)
+{
+	switch (state) {
+	case SHELL:
+		shellline (line);
+		break;
+	case ENTER:
+		enterline (line);
+		break;
+	}
+}
+
+int
+gotchar (char c)
+{
+	static int i;
+
+	if (c >= 0x20 && c < 0x7f) {
+		if (i == sizeof(linebuf) - 1) {
+			putchar ('\x07');
+			return 0;
+		}
+		linebuf[i++] = c;
+		putchar (c);
+		return 0;
+	}
+
+	/* Kill Letter */
+	if (c == 0x7f)
+	       c = 0x8;
+	if (c == 0x8) {
+		if (i == 0) {
+			putchar ('\x07');
+			return 0;
+		}
+		linebuf[--i] = '\0';
+		putchar (c);
+		putchar (' ');
+		putchar (c);
+		return 0;
+	}
+
+	/* Kill Word */
+	if (c == 0x17) {
+		while (i && linebuf[i - 1] == ' ') {
+			sput ("\b \b");
+			i--;
+		}
+		while (i && linebuf[i - 1] != ' ') {
+			sput ("\b \b");
+			i--;
+		}
+		return 0;
+	}
+
+	/* Kill Line */
+	if (c == 0x3) {
+		linebuf[i] = '\0';
+		sput ("^C\n");
+		i = 0;
+		gotline (linebuf);
+		return 0;
+	}
+
+	/* Enter */
+	if (c == 0xd) {
+		if (i)
+			linebuf[i] = '\0';
+		putchar ('\n');
+		i = 0;
+		gotline (linebuf);
+		return 0;
+	}
+
+	/* Finished */
+	if (c == 0x4) {
+		if (i == 0) {
+			putchar ('\n');
+			gotline (NULL);
+			return 0;
+		}
+		linebuf[i] = '\0';
+		sput ("^D\n");
+		i = 0;
+		gotline (linebuf);
+		return 1;
+	}
+
+	putchar ('\x07');
 	return 0;
 }
